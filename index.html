@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Flappy Bird</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1a1a2e;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui,sans-serif;overflow:hidden}
+canvas{display:block;cursor:pointer;max-width:100vw;max-height:100vh}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const W=480,H=640;
+const GRAVITY=0.45,JUMP=-8.5,PIPE_W=60,GAP=160,SPEED=3,INTERVAL=1500;
+
+const c=document.getElementById('c');
+c.width=W;c.height=H;
+const ctx=c.getContext('2d');
+
+let birdY=H/2,birdVy=0,pipes=[],score=0,lastPipe=0,frame=0;
+let phase='idle'; // idle | playing | dead
+
+function flap(){
+  if(phase==='idle'){phase='playing';lastPipe=Date.now();birdVy=JUMP;}
+  else if(phase==='playing'){birdVy=JUMP;}
+}
+
+function reset(){
+  birdY=H/2;birdVy=0;pipes=[];score=0;lastPipe=0;frame=0;phase='idle';
+}
+
+function bg(){
+  const sky=ctx.createLinearGradient(0,0,0,H*.7);
+  sky.addColorStop(0,'#4fc3f7');sky.addColorStop(1,'#81d4fa');
+  ctx.fillStyle=sky;ctx.fillRect(0,0,W,H*.7);
+  ctx.fillStyle='#8d6e63';ctx.fillRect(0,H*.7,W,H*.3);
+  ctx.fillStyle='#a5d6a7';ctx.fillRect(0,H*.7,W,18);
+  ctx.fillStyle='rgba(255,255,255,0.8)';
+  [{x:60,y:80},{x:200,y:50},{x:360,y:100}].forEach(({x,y})=>{
+    ctx.beginPath();ctx.arc(x,y,30,0,Math.PI*2);
+    ctx.arc(x+30,y-10,22,0,Math.PI*2);ctx.arc(x+55,y,28,0,Math.PI*2);ctx.fill();
+  });
+}
+
+function drawPipes(){
+  pipes.forEach(p=>{
+    ctx.fillStyle='#43a047';ctx.fillRect(p.x,0,PIPE_W,p.top);
+    ctx.fillStyle='#388e3c';ctx.fillRect(p.x-4,p.top-20,PIPE_W+8,20);
+    const bot=p.top+GAP;
+    ctx.fillStyle='#43a047';ctx.fillRect(p.x,bot,PIPE_W,H-bot);
+    ctx.fillStyle='#388e3c';ctx.fillRect(p.x-4,bot,PIPE_W+8,20);
+  });
+}
+
+function drawBird(){
+  const bx=120,by=birdY,wa=Math.sin(frame*.3)*.4;
+  ctx.save();ctx.translate(bx,by);
+  ctx.fillStyle='#fdd835';ctx.beginPath();ctx.ellipse(0,0,18,14,0,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='#f9a825';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.fillStyle='#ffca28';ctx.save();ctx.rotate(-wa);
+  ctx.beginPath();ctx.ellipse(-6,2,10,6,Math.PI*.3,0,Math.PI*2);ctx.fill();ctx.restore();
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(8,-4,5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#1a237e';ctx.beginPath();ctx.arc(9,-4,2.5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#ff6f00';ctx.beginPath();ctx.moveTo(16,-1);ctx.lineTo(24,2);ctx.lineTo(16,5);ctx.closePath();ctx.fill();
+  ctx.restore();
+}
+
+function hit(){
+  if(birdY+14>H*.7||birdY-14<0)return true;
+  for(const p of pipes){
+    if(120+14>p.x&&120-14<p.x+PIPE_W){
+      if(birdY-14<p.top||birdY+14>p.top+GAP)return true;
+    }
+  }
+  return false;
+}
+
+function overlay(title,sub,btn){
+  ctx.fillStyle='rgba(0,0,0,0.55)';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#16213e';roundRect(W/2-130,H/2-120,260,240,16);
+  ctx.fillStyle='#e0f7fa';ctx.font='bold 26px system-ui';ctx.textAlign='center';
+  ctx.fillText(title,W/2,H/2-70);
+  ctx.fillStyle='#80cbc4';ctx.font='16px system-ui';
+  ctx.fillText(sub,W/2,H/2-40);
+  ctx.fillStyle='#00b4d8';roundRect(W/2-60,H/2,120,44,10,true);
+  ctx.fillStyle='#fff';ctx.font='bold 16px system-ui';
+  ctx.fillText(btn,W/2,H/2+27);
+  ctx.textAlign='left';
+}
+
+function roundRect(x,y,w,h,r,fill){
+  ctx.beginPath();ctx.roundRect(x,y,w,h,r);
+  if(fill)ctx.fill();else{ctx.fillStyle='#16213e';ctx.fill();}
+}
+
+function scoreText(){
+  ctx.fillStyle='#fff';ctx.font='bold 36px system-ui';ctx.textAlign='center';
+  ctx.shadowColor='rgba(0,0,0,0.4)';ctx.shadowBlur=4;
+  ctx.fillText(score,W/2,60);ctx.shadowBlur=0;ctx.textAlign='left';
+}
+
+function loop(){
+  if(phase==='playing'){
+    birdVy+=GRAVITY;birdY+=birdVy;frame++;
+    const now=Date.now();
+    if(now-lastPipe>INTERVAL){
+      const top=80+Math.random()*(H*.7-GAP-80);
+      pipes.push({x:W+PIPE_W,top,passed:false});lastPipe=now;
+    }
+    pipes=pipes.filter(p=>p.x>-PIPE_W-10);
+    pipes.forEach(p=>{
+      p.x-=SPEED;
+      if(!p.passed&&p.x+PIPE_W<120){p.passed=true;score++;}
+    });
+    if(hit()){phase='dead';}
+  }
+  bg();drawPipes();drawBird();
+  if(phase==='playing'||phase==='dead')scoreText();
+  if(phase==='idle')overlay('🐦 Flappy Bird','Click or press Space to flap','Play');
+  if(phase==='dead')overlay('Game Over','Score: '+score,'Play Again');
+  requestAnimationFrame(loop);
+}
+
+c.addEventListener('click',()=>{
+  if(phase==='dead')reset();
+  flap();
+});
+window.addEventListener('keydown',e=>{
+  if(e.code==='Space'||e.code==='ArrowUp'){e.preventDefault();if(phase==='dead')reset();flap();}
+});
+
+loop();
+</script>
+</body>
+</html>
