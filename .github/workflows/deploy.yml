@@ -1,0 +1,73 @@
+name: Deploy
+on:
+  push:
+    branches: [main, dev]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  guardrails:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - name: Synth
+        run: cd infra && npx cdk synth --all -c env=${{ github.ref_name == 'main' && 'demo' || 'dev' }} -q
+      # Gate 1 — portable, jq-only self-check on the 5 hard guardrails. Always runs.
+      - name: Guardrail gate (check-guardrails.sh)
+        run: bash scripts/check-guardrails.sh infra/cdk.out
+      # Gate 2 — comprehensive Palisade slat registry (every Sev2/Sev3 slat:
+      # public S3/KMS/SNS/SQS/Lambda/Secrets, IAM external-trust, Cognito
+      # self-signup, unauth API GW, OpenSearch, ELB desync). The agent runs this
+      # locally before pushing (it's installed at $HOME/.claude/skills/palisade-gate
+      # in the microVM); on a generic GitHub-hosted runner the skill may be absent,
+      # so this step runs it when present and otherwise notes that gate 1 already
+      # passed. To make it a HARD CI gate, vendor scripts/palisade_gate.py into the
+      # repo (or install the skill on a self-hosted runner) and drop the guard.
+      - name: Palisade gate (comprehensive)
+        run: |
+          PG="$HOME/.claude/skills/palisade-gate/scripts/palisade_gate.py"
+          if [ -f "$PG" ]; then
+            python3 -m pip install --quiet pyyaml || true
+            python3 "$PG" infra/cdk.out
+          elif command -v palisade_gate.py >/dev/null 2>&1; then
+            python3 -m pip install --quiet pyyaml || true
+            palisade_gate.py infra/cdk.out
+          else
+            echo "::notice::palisade-gate not installed on this runner; relying on check-guardrails.sh (gate 1). Vendor scripts/palisade_gate.py to enforce in CI."
+          fi
+
+  deploy:
+    needs: guardrails
+    runs-on: ubuntu-latest
+    # These are PoC/demo deploy targets — the environment is "demo", never "prod".
+    environment: ${{ github.ref_name == 'main' && 'demo' || 'dev' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'us-west-2' }}
+      # Fail fast if the target account isn't CDK-bootstrapped (the AWS-side readiness
+      # check #34 keeps OUT of any always-on service — it runs HERE, with the OIDC creds,
+      # the only context that ever touches the target account). A clear message beats an
+      # opaque mid-deploy "SSM parameter /cdk-bootstrap/... not found".
+      - name: Check CDK bootstrap (CDKToolkit)
+        run: |
+          if ! aws cloudformation describe-stacks --stack-name CDKToolkit >/dev/null 2>&1; then
+            echo "::error::Target account is not CDK-bootstrapped. Run: npx cdk bootstrap aws://$(aws sts get-caller-identity --query Account --output text)/${{ vars.AWS_REGION || 'us-west-2' }}"
+            exit 1
+          fi
+      - run: npm ci
+      - name: Install Python (for AgentCore bundling)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq python3 python3-pip python3-venv
+      - name: Deploy
+        run: bash scripts/deploy.sh ${{ github.ref_name == 'main' && 'demo' || 'dev' }}

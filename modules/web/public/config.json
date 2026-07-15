@@ -1,0 +1,7 @@
+{
+  "region": "REPLACE_AT_DEPLOY",
+  "userPoolId": "REPLACE_AT_DEPLOY",
+  "userPoolClientId": "REPLACE_AT_DEPLOY",
+  "graphqlUrl": "REPLACE_AT_DEPLOY",
+  "envName": "demo"
+}

@@ -1,0 +1,13 @@
+node_modules
+__pycache__
+dist/
+build/
+.next/
+cdk.out/
+cdk-outputs-*.json
+*.sqlite
+*.webm
+.env
+.venv*
+venv/
+modules/web/tsconfig.tsbuildinfo

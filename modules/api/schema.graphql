@@ -1,0 +1,28 @@
+type ScoreEntry @aws_cognito_user_pools {
+  userId: String!
+  username: String!
+  score: Int!
+  createdAt: String!
+}
+
+type ScoreResult @aws_cognito_user_pools {
+  items: [ScoreEntry!]!
+}
+
+type HealthResult @aws_cognito_user_pools {
+  ok: Boolean!
+}
+
+input SubmitScoreInput {
+  score: Int!
+  username: String!
+}
+
+type Query {
+  health: HealthResult @aws_cognito_user_pools
+  getTopScores(limit: Int): ScoreResult @aws_cognito_user_pools
+}
+
+type Mutation {
+  submitScore(input: SubmitScoreInput!): ScoreEntry @aws_cognito_user_pools
+}

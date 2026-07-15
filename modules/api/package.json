@@ -1,0 +1,14 @@
+{
+  "name": "@flappybird/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "echo 'API module: no build step (resolvers are plain JS, lambda bundled by CDK esbuild)'",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.0",
+    "@aws-sdk/client-dynamodb": "^3.600.0"
+  }
+}
